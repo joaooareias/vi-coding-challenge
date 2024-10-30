@@ -1,8 +1,10 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
+import './filter-panel.ts';
 
 interface Monster {
   name: string;
+  id: number;
   sprites: {
     front_default: string;
   };
@@ -10,7 +12,7 @@ interface Monster {
 }
 
 /**
- * Custom element to display a list of monsters fetched from PokeAPI.
+ * Element to display a list of monsters fetched from PokeAPI.
  */
 @customElement('my-products')
 export class MyProducts extends LitElement {
@@ -27,6 +29,12 @@ export class MyProducts extends LitElement {
   loading = true;
 
   /**
+   * Array to hold the list of selected types
+   */
+  @state()
+  selectedTypes: string[] = [];
+
+  /**
    * Fetch data when the component is added to the DOM.
    */
   connectedCallback() {
@@ -39,7 +47,7 @@ export class MyProducts extends LitElement {
    */
   async fetchMonsters() {
     try {
-      const response = await fetch('https://pokeapi.co/api/v2/pokemon?limit=20'); // Limit for example
+      const response = await fetch('https://pokeapi.co/api/v2/pokemon?limit=20'); // Limit of 20 just for example
       const data = await response.json();
       
       // Fetch details for each Pokemon to get images and types
@@ -50,68 +58,113 @@ export class MyProducts extends LitElement {
         })
       );
 
-      this.monsters = detailedMonsters; // Set monsters to the detailed data
+      this.monsters = detailedMonsters; // Set monsters with the detailed data get from the request
     } catch (error) {
       console.error('Error fetching monster data:', error);
     } finally {
-      this.loading = false;
+      this.loading = false; // when the request is done set loading to false
     }
   }
 
   static styles = css`
-    .monster-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-      gap: 1rem;
+    .container {
+      display: flex;
+      gap: 16px;
     }
-    .monster-card {
+    
+    .filter-panel {
+      flex: 0 0 200px;
+      min-width: 200px;
       border: 1px solid #ddd;
       border-radius: 8px;
       padding: 1rem;
+    }
+
+    .monster-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 16px;
+    }
+    
+    .monster-card {
+      position: relative;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      max-height: 200px;
+      padding: 1rem;
       text-align: center;
     }
+    
     .monster-image {
       width: 100px;
       height: 100px;
     }
+    
     .loading {
       text-align: center;
       font-size: 1.5rem;
       color: #555;
     }
+
+    .monster-id {
+      position: absolute;
+      top: 8px; 
+      right: 8px;
+      font-size: 20px;
+      color: #888;
+    }
   `;
 
   render() {
+    const filteredMonsters = this.selectedTypes.length > 0 
+      ? this.monsters.filter(monster => 
+          monster.types.some(typeObj => this.selectedTypes.includes(typeObj.type.name))
+        )
+      : this.monsters;
     return html`
-      <h2>These are our products</h2>
-      ${this.loading
-        ? html`<p class="loading">Loading...</p>`
-        : html`
-          <div class="monster-grid">
-            ${this.monsters.map(
-              (monster: any) => html`
-                <div class="monster-card">
-                  <img
-                    src="${monster.sprites.front_default}"
-                    alt="${monster.name}"
-                    class="monster-image"
-                  />
-                  <p>${monster.name}</p>
-                  <div>
-                    ${monster.types.map(
-                      (typeObj: any) => html`
-                        <span style="color: ${this.getTypeColor(typeObj.type.name)};">
-                          • ${typeObj.type.name}
-                        </span>
-                      `
-                    )}
-                  </div>
-                </div>
-              `
-            )}
-          </div>
+      <h2>These are our products:</h2>
+      <div class="container">
+        <filter-panel @filter-changed="${(e: CustomEvent) => this.updateFilter(e.detail.selectedTypes)}"></filter-panel>
+        <div class="monster-grid">
+        ${this.loading
+            ? html`<p class="loading">Loading...</p>`
+            : html`
+                ${filteredMonsters.map(
+                (monster: any) => html`
+                    <div class="monster-card">
+                        <a href="/monster/${monster.name}" target="_blank" rel="noopener noreferrer">
+                            <span class="monster-id">#${monster.id}</span>
+                            <img
+                                src="${monster.sprites.front_default}"
+                                alt="${monster.name}"
+                                class="monster-image"
+                            />
+                        </a>
+                        <p>${monster.name}</p>
+                        <div>
+                            ${monster.types.map(
+                            (typeObj: any) => html`
+                                <span style="color: ${this.getTypeColor(typeObj.type.name)};">
+                                • ${typeObj.type.name}
+                                </span>
+                            `
+                            )}
+                        </div>
+                    </div>
+                `
+                )}
         `}
+        </div>
+    </div>
     `;
+  }
+
+  /**
+   * update array of selected types.
+   */      
+  updateFilter(selectedTypes: string[]) {
+    this.selectedTypes = selectedTypes;
   }
 
   /**
